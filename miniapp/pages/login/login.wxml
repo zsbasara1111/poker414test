@@ -1,0 +1,16 @@
+<view class="container">
+  <!-- 背景渐变 -->
+  <view class="bg-sky"/>
+
+  <!-- Logo 区域 -->
+  <view class="logo-area">
+    <text class="logo-sub">东 北 扑 克</text>
+    <text class="logo-title">刨幺414</text>
+    <text class="logo-desc">6人对战 · 东北特色</text>
+  </view>
+
+  <!-- 登录按钮 -->
+  <button class="login-btn" bindtap="onLogin" loading="{{loading}}">
+    微信一键登录
+  </button>
+</view>

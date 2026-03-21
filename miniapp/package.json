@@ -1,0 +1,8 @@
+{
+  "name": "poker414-miniapp",
+  "version": "1.0.0",
+  "description": "东北刨幺414 微信小程序",
+  "dependencies": {
+    "socket.io-client": "^4.8.1"
+  }
+}

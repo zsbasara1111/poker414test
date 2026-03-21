@@ -1,0 +1,17 @@
+{
+  "pages": [
+    "pages/login/login",
+    "pages/home/home",
+    "pages/room/room",
+    "pages/game/game"
+  ],
+  "window": {
+    "navigationBarTitleText": "刨幺414",
+    "navigationBarBackgroundColor": "#050D14",
+    "navigationBarTextStyle": "white",
+    "backgroundTextStyle": "dark"
+  },
+  "pageOrientation": "landscape",
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

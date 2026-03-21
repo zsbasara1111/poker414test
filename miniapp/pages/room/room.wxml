@@ -1,0 +1,54 @@
+<view class="container">
+  <view class="bg-sky"/>
+
+  <!-- 标题栏 -->
+  <view class="header">
+    <text class="title">等待室</text>
+    <view class="room-code-box">
+      <text class="code-label">房间码</text>
+      <text class="code-value" bindtap="copyCode">{{roomCode}}</text>
+    </view>
+    <view class="share-btn" bindtap="shareRoom">分享给好友</view>
+  </view>
+
+  <!-- 座位区域：A队(左) vs B队(右) -->
+  <view class="seats-area">
+    <!-- A队 -->
+    <view class="team-col team-a">
+      <text class="team-label">A 队</text>
+      <view wx:for="{{teamASeats}}" wx:key="idx" class="seat-card {{item.userId ? 'occupied' : 'empty'}}">
+        <view wx:if="{{item.userId === 'bot'}}" class="seat-avatar bot">🤖</view>
+        <image wx:elif="{{item.userId}}" class="seat-avatar" src="{{item.avatar || '/images/default-avatar.png'}}" mode="aspectFill"/>
+        <view wx:else class="seat-avatar empty-av">+</view>
+        <text class="seat-name">{{item.userId ? (item.nickname || '玩家') : '空位'}}</text>
+        <view wx:if="{{item.userId && item.ready}}" class="ready-tag">准备✓</view>
+      </view>
+    </view>
+
+    <!-- VS -->
+    <view class="vs-divider">
+      <text class="vs-text">VS</text>
+    </view>
+
+    <!-- B队 -->
+    <view class="team-col team-b">
+      <text class="team-label">B 队</text>
+      <view wx:for="{{teamBSeats}}" wx:key="idx" class="seat-card {{item.userId ? 'occupied' : 'empty'}}">
+        <view wx:if="{{item.userId === 'bot'}}" class="seat-avatar bot">🤖</view>
+        <image wx:elif="{{item.userId}}" class="seat-avatar" src="{{item.avatar || '/images/default-avatar.png'}}" mode="aspectFill"/>
+        <view wx:else class="seat-avatar empty-av">+</view>
+        <text class="seat-name">{{item.userId ? (item.nickname || '玩家') : '空位'}}</text>
+        <view wx:if="{{item.userId && item.ready}}" class="ready-tag">准备✓</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 底部操作区 -->
+  <view class="bottom-bar">
+    <button wx:if="{{isHost}}" class="action-btn btn-bot" bindtap="addBot">+机器人</button>
+    <button class="action-btn btn-ready {{myReady ? 'is-ready' : ''}}" bindtap="toggleReady">
+      {{myReady ? '取消准备' : '准备'}}
+    </button>
+    <button wx:if="{{isHost}}" class="action-btn btn-start {{canStart ? '' : 'disabled'}}" bindtap="startGame">开始游戏</button>
+  </view>
+</view>

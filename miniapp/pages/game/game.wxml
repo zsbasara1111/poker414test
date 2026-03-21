@@ -1,0 +1,144 @@
+<view class="container">
+  <!-- 背景 -->
+  <view class="bg-sky"/>
+  <view class="bg-table-wrap">
+    <view class="table-oval"/>
+  </view>
+
+  <!-- 积分栏 -->
+  <view class="score-bar">
+    <view class="score-item score-a">
+      <text class="score-label">A队</text>
+      <text class="score-num">{{scoreA}}</text>
+    </view>
+    <view class="score-divider">
+      <text class="total-label">共300分</text>
+      <view class="timer-ring" wx:if="{{isMyTurn}}">
+        <text class="timer-num">{{timerSec}}</text>
+      </view>
+    </view>
+    <view class="score-item score-b">
+      <text class="score-label">B队</text>
+      <text class="score-num">{{scoreB}}</text>
+    </view>
+  </view>
+
+  <!-- 6位玩家头像（围绕牌桌） -->
+  <view class="players-wrap">
+    <view
+      wx:for="{{players}}"
+      wx:key="userId"
+      class="player-slot {{item.isActive ? 'active' : ''}} {{item.team}}"
+      style="{{item.posStyle}}"
+    >
+      <view class="avatar-ring {{item.isActive ? 'ring-glow' : ''}}">
+        <image wx:if="{{item.userId !== 'bot'}}" class="avatar" src="{{item.avatar || '/images/default-avatar.png'}}" mode="aspectFill"/>
+        <text wx:else class="avatar bot-icon">🤖</text>
+      </view>
+      <text class="player-name">{{item.nickname || '玩家'}}</text>
+      <text class="hand-count">{{item.handCount}}张</text>
+
+      <!-- 聊天气泡 -->
+      <view class="chat-bubble" wx:if="{{chatBubbles[item.userId]}}">
+        <text>{{chatBubbles[item.userId]}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 中央出牌区 -->
+  <view class="play-area">
+    <view wx:if="{{lastPlay}}" class="played-cards">
+      <view class="played-label">{{lastPlay.userId === myUserId ? '你出的' : (lastPlay.nickname || '对方')+'出的'}}</view>
+      <view class="card-row">
+        <view wx:for="{{lastPlay.cards}}" wx:key="id" class="card-sm card-{{item.suit}}">
+          <text class="card-rank-sm">{{item.rank}}</text>
+          <text class="card-suit-sm">{{item.suit === 'joker' ? '🃏' : item.suit}}</text>
+        </view>
+      </view>
+      <view class="play-type-tag">{{lastPlay.typeLabel}}</view>
+    </view>
+    <view wx:else class="play-prompt">
+      <text>{{isMyTurn ? '你先出牌' : '等待出牌...'}}</text>
+    </view>
+  </view>
+
+  <!-- 手牌区 -->
+  <view class="hand-area">
+    <view class="hand-cards" style="width:{{handAreaWidth}}rpx">
+      <view
+        wx:for="{{hand}}"
+        wx:key="id"
+        class="card {{item.selected ? 'selected' : ''}} card-{{item.suit}}"
+        style="left:{{item.left}}rpx"
+        bindtap="tapCard"
+        data-id="{{item.id}}"
+      >
+        <text class="card-rank">{{item.rank}}</text>
+        <text class="card-suit">{{item.suit === 'joker' ? '🃏' : item.suit}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 操作按钮 -->
+  <view class="action-bar">
+    <button wx:if="{{selectedCount > 0}}" class="action-btn btn-sort" bindtap="sortHand">整理</button>
+    <button class="action-btn btn-chat" bindtap="toggleChat">💬</button>
+    <button
+      wx:if="{{isMyTurn && selectedCount > 0}}"
+      class="action-btn btn-play"
+      bindtap="playCards"
+    >出牌 ({{selectedCount}}张)</button>
+    <button
+      wx:if="{{isMyTurn && lastPlay}}"
+      class="action-btn btn-pass"
+      bindtap="passPlay"
+    >不要</button>
+  </view>
+
+  <!-- 聊天面板 -->
+  <view class="chat-panel" wx:if="{{showChatPanel}}">
+    <view class="chat-panel-inner">
+      <scroll-view scroll-y class="phrase-list">
+        <view
+          wx:for="{{phrases}}"
+          wx:key="*this"
+          class="phrase-item"
+          bindtap="sendPhrase"
+          data-text="{{item}}"
+        >{{item}}</view>
+      </scroll-view>
+      <view class="emoji-row">
+        <text
+          wx:for="{{emojis}}"
+          wx:key="*this"
+          class="emoji-item"
+          bindtap="sendEmoji"
+          data-emoji="{{item}}"
+        >{{item}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 结算弹窗 -->
+  <view class="result-mask" wx:if="{{gameResult}}">
+    <view class="result-box">
+      <view class="result-title {{gameResult.myWin ? 'win' : 'lose'}}">
+        {{gameResult.myWin ? '🎉 胜利！' : '😭 失败'}}
+      </view>
+      <view class="result-scores">
+        <text>A队：{{scoreA}}分</text>
+        <text>B队：{{scoreB}}分</text>
+      </view>
+      <view class="result-delta {{gameResult.myWin ? 'delta-win' : 'delta-lose'}}">
+        {{gameResult.delta > 0 ? '+' : ''}}{{gameResult.delta}} 积分
+      </view>
+      <view class="result-effects" wx:if="{{gameResult.effect !== 'normal'}}">
+        <text wx:if="{{gameResult.effect === 'bigBlood'}}">💥 大血！对手不足10分！</text>
+        <text wx:if="{{gameResult.effect === 'smallBlood'}}">🩸 小血！对手不足40分！</text>
+      </view>
+      <button class="ready-next-btn {{myReadyNext ? 'ready' : ''}}" bindtap="readyNext">
+        {{myReadyNext ? '等待其他人...('+readyNextCount+'/'+readyNextTotal+')' : '下一局 准备'}}
+      </button>
+    </view>
+  </view>
+</view>
