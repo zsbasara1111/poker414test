@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/admin/.claude/**)",
+      "Bash(bash \"C:/Users/admin/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.5/skills/brainstorming/scripts/start-server.sh\" --project-dir \"h:/Claude Code/poker414\")",
+      "WebFetch(domain:skills.sh)",
+      "Read(//c/Users/admin/.agents/skills/frontend-design/**)",
+      "Read(//c/Users/admin/.agents/skills/**)",
+      "Bash(npx skills:*)"
+    ]
+  }
+}
