@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>东北刨幺414 - 调试版</title>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@700;900&family=ZCOOL+XiaoWei&display=swap" rel="stylesheet">
     <style>
@@ -17,6 +17,7 @@
             justify-content: center;
             min-height: 100vh;
             overflow: hidden;
+            touch-action: none;
         }
 
         /* Canvas container */
@@ -964,6 +965,7 @@
         let _sweeping = false;       // 正在滑动多选
         let _sweepAdding = null;     // 本次滑动是"选中"还是"取消"
         let _dragSrcId = null;       // 拖拽换位起点
+        let _dragTgtId = null;       // 触摸拖拽换位终点
 
         function renderHandCard(card, selected, marginPx) {
             const isRed = card.suit === '♥' || card.suit === '♦';
@@ -976,7 +978,8 @@
                         data-cid="${card.id}" ${mStyle}>
                 <div class="card-top-zone"
                     onmousedown="cardTopDown(event,'${card.id}')"
-                    onmouseenter="cardTopEnter(event,'${card.id}')">
+                    onmouseenter="cardTopEnter(event,'${card.id}')"
+                    ontouchstart="cardTopDown(event,'${card.id}')">
                     <span class="hr">${card.rank}</span>
                     ${!isJoker ? `<span class="hs">${card.suit}</span>` : ''}
                     ${scoreLabel}
@@ -986,7 +989,8 @@
                     ondragstart="cardDragStart(event,'${card.id}')"
                     ondragover="cardDragOver(event,'${card.id}')"
                     ondrop="cardDrop(event,'${card.id}')"
-                    ondragleave="cardDragLeave(event)">
+                    ondragleave="cardDragLeave(event)"
+                    ontouchstart="cardBotTouchStart(event,'${card.id}')">
                 </div>
             </div>`;
         }
@@ -1033,6 +1037,61 @@
             _toggleSelectById(cid, _sweepAdding);
         }
         document.addEventListener('mouseup', () => { _sweeping = false; _sweepAdding = null; });
+
+        // ── 触摸：下半区拖拽换位起点 ──
+        function cardBotTouchStart(e, cid) {
+            e.preventDefault();
+            _dragSrcId = cid;
+            _dragTgtId = null;
+        }
+
+        // ── 触摸：全局 move — 同时处理滑动多选 & 拖拽换位 ──
+        document.addEventListener('touchmove', function(e) {
+            if (!_sweeping && !_dragSrcId) return;
+            e.preventDefault();
+            const touch = e.touches[0];
+            const el = document.elementFromPoint(touch.clientX, touch.clientY);
+
+            if (_sweeping) {
+                const topZone = el?.closest?.('.card-top-zone');
+                if (topZone) {
+                    const cid = topZone.closest('.hcard')?.dataset?.cid;
+                    if (cid) _toggleSelectById(cid, _sweepAdding);
+                }
+            }
+
+            if (_dragSrcId) {
+                document.querySelectorAll('.hcard.drag-over').forEach(n => n.classList.remove('drag-over'));
+                const hcard = el?.closest?.('.hcard');
+                if (hcard && hcard.dataset.cid !== _dragSrcId) {
+                    hcard.classList.add('drag-over');
+                    _dragTgtId = hcard.dataset.cid;
+                } else if (!hcard) {
+                    _dragTgtId = null;
+                }
+            }
+        }, { passive: false });
+
+        // ── 触摸：全局 end — 确认拖拽换位 & 结束滑动多选 ──
+        document.addEventListener('touchend', function() {
+            if (_dragSrcId && _dragTgtId) {
+                const hand = gameState.hands.player || [];
+                if (!gameState.playerHandOrder) {
+                    gameState.playerHandOrder = [...hand].sort((a, b) => rankValue(b.rank) - rankValue(a.rank));
+                }
+                const arr = gameState.playerHandOrder;
+                const si = arr.findIndex(c => c.id === _dragSrcId);
+                const ti = arr.findIndex(c => c.id === _dragTgtId);
+                if (si >= 0 && ti >= 0) {
+                    const [moved] = arr.splice(si, 1);
+                    arr.splice(ti, 0, moved);
+                    updatePlayerHand();
+                }
+                document.querySelectorAll('.hcard.drag-over').forEach(n => n.classList.remove('drag-over'));
+            }
+            _sweeping = false; _sweepAdding = null;
+            _dragSrcId = null; _dragTgtId = null;
+        });
 
         function _toggleSelectById(cid, add) {
             const card = gameState.hands.player.find(c => c.id === cid);
@@ -1601,6 +1660,17 @@
             updatePlayZone();
             updateButtons();
         }
+
+        // ── 画布缩放：适配任意屏幕 ──
+        function fitCanvas() {
+            const canvas = document.querySelector('.canvas');
+            const scale = Math.min(window.innerWidth / 667, window.innerHeight / 375);
+            canvas.style.transform = `scale(${scale})`;
+            canvas.style.transformOrigin = 'center center';
+        }
+        window.addEventListener('resize', fitCanvas);
+        window.addEventListener('orientationchange', () => setTimeout(fitCanvas, 100));
+        fitCanvas();
 
         // Initialize
         updateLog();
