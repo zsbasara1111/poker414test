@@ -4,473 +4,680 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>东北刨幺414 - 调试版</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@700;900&family=ZCOOL+XiaoWei&display=swap" rel="stylesheet">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            font-family: 'Microsoft YaHei', sans-serif;
-            background: #0a3d1f;
+            background: #111;
+            font-family: 'ZCOOL XiaoWei', 'PingFang SC', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
             min-height: 100vh;
             overflow: hidden;
-            color: white;
         }
 
-        .game-container {
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            padding: 10px;
+        /* Canvas container */
+        .canvas {
+            width: 667px;
+            height: 375px;
+            overflow: hidden;
+            position: relative;
+            border-radius: 14px;
+            box-shadow: 0 0 0 1.5px rgba(255,255,255,.12), 0 20px 60px rgba(0,0,0,.7);
         }
 
-        /* Top Bar */
-        .top-bar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 20px;
-            background: rgba(0, 0, 0, 0.3);
-            border-radius: 10px;
-            margin-bottom: 10px;
+        /* ══════════════════════════════════════
+           SHARED BACKGROUND SCENE
+        ══════════════════════════════════════ */
+        .scene { position: absolute; inset: 0; overflow: hidden; }
+
+        /* Sky gradient */
+        .sky {
+            position: absolute; inset: 0;
+            background: linear-gradient(180deg,
+                #4EC0E8 0%, #72CEE8 12%, #A8DCF0 22%,
+                #D8EDF8 32%, #F0E8D0 48%,
+                #F8D888 62%, #F0B050 76%, #E07838 88%, #C05830 100%);
         }
 
-        .score-display {
-            display: flex;
-            gap: 30px;
-            font-size: 18px;
-            font-weight: bold;
+        /* Sun glow */
+        .sun {
+            position: absolute; top: 28px; left: 50%; transform: translateX(-50%);
+            width: 56px; height: 56px; border-radius: 50%;
+            background: radial-gradient(circle, #FFF8C0 0%, #FFE566 40%, #FFBE3A 70%, transparent 100%);
+            filter: blur(2px);
+            box-shadow: 0 0 40px 20px rgba(255,200,60,.35), 0 0 80px 40px rgba(255,160,30,.15);
         }
 
-        .team-a { color: #4ade80; }
-        .team-b { color: #f87171; }
-
-        .turn-indicator {
-            padding: 8px 20px;
-            background: linear-gradient(135deg, #fbbf24, #f59e0b);
-            border-radius: 20px;
-            font-weight: bold;
-            color: #1a1a1a;
-            animation: pulse 1.5s infinite;
+        /* Clouds */
+        .cloud { position: absolute; opacity: .85; }
+        .cloud-body {
+            background: linear-gradient(180deg, #fff 0%, #F0ECE0 100%);
+            border-radius: 50px;
+            box-shadow: 0 4px 12px rgba(0,0,0,.08);
         }
+        .c1 { top: 22px; left: 60px; }
+        .c1 .cloud-body { width: 90px; height: 26px; }
+        .c1::before { content: ''; position: absolute; width: 44px; height: 30px;
+            background: linear-gradient(180deg, #fff, #F0ECE0); border-radius: 50%; top: -14px; left: 16px;
+            box-shadow: inset 0 -4px 8px rgba(0,0,0,.06); }
+        .c1::after { content: ''; position: absolute; width: 30px; height: 22px;
+            background: linear-gradient(180deg, #fff, #F0ECE0); border-radius: 50%; top: -8px; left: 46px; }
 
-        @keyframes pulse {
-            0%, 100% { box-shadow: 0 0 5px rgba(251, 191, 36, 0.5); }
-            50% { box-shadow: 0 0 20px rgba(251, 191, 36, 0.8); }
+        .c2 { top: 14px; right: 80px; }
+        .c2 .cloud-body { width: 70px; height: 20px; }
+        .c2::before { content: ''; position: absolute; width: 36px; height: 26px;
+            background: linear-gradient(180deg, #fff, #EEE8DC); border-radius: 50%; top: -12px; left: 12px; }
+        .c2::after { content: ''; position: absolute; width: 24px; height: 18px;
+            background: linear-gradient(180deg, #fff, #EEE8DC); border-radius: 50%; top: -6px; left: 38px; }
+
+        /* City skyline SVG */
+        .city-layer { position: absolute; bottom: 60px; left: 0; right: 0; height: 160px; pointer-events: none; }
+
+        /* Water lake */
+        .lake {
+            position: absolute; bottom: 54px; left: 140px; right: 140px; height: 22px;
+            background: linear-gradient(180deg, rgba(160,210,240,.6), rgba(120,180,220,.35));
+            border-radius: 50%; filter: blur(1.5px);
         }
-
-        .deal-btn {
-            padding: 10px 20px;
-            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-            border: none;
-            border-radius: 8px;
-            color: white;
-            font-size: 16px;
-            cursor: pointer;
-            transition: transform 0.2s;
-        }
-
-        .deal-btn:hover {
-            transform: scale(1.05);
-        }
-
-        /* Main Game Area */
-        .main-area {
-            flex: 1;
-            display: flex;
-            gap: 10px;
-        }
-
-        /* Center Area */
-        .center-area {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .last-play-area {
-            flex: 1;
-            background: rgba(0, 0, 0, 0.2);
-            border-radius: 10px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-            min-height: 200px;
-        }
-
-        .last-play-label {
-            font-size: 14px;
-            color: #9ca3af;
-            margin-bottom: 15px;
-        }
-
-        .last-play-cards {
-            display: flex;
-            gap: 5px;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-
-        .game-log {
-            height: 150px;
-            background: rgba(0, 0, 0, 0.3);
-            border-radius: 10px;
-            padding: 10px;
-            overflow-y: auto;
-            font-size: 13px;
-        }
-
-        .log-entry {
-            padding: 3px 0;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .log-entry:last-child {
-            border-bottom: none;
-        }
-
-        /* Player List */
-        .player-list {
-            width: 200px;
-            background: rgba(0, 0, 0, 0.2);
-            border-radius: 10px;
-            padding: 15px;
-        }
-
-        .player-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 10px;
-            margin-bottom: 8px;
-            border-radius: 8px;
-            background: rgba(255, 255, 255, 0.05);
-            transition: all 0.3s;
-        }
-
-        .player-item.active {
-            box-shadow: 0 0 15px rgba(251, 191, 36, 0.6);
-            background: rgba(251, 191, 36, 0.15);
-        }
-
-        .player-item.team-a-player {
-            border-left: 3px solid #4ade80;
-        }
-
-        .player-item.team-b-player {
-            border-left: 3px solid #f87171;
-        }
-
-        .player-avatar {
-            width: 35px;
-            height: 35px;
+        .lake::before { content: ''; position: absolute; inset: 4px 20px;
             border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            font-size: 12px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,180,.3), transparent); }
+
+        /* Ground */
+        .ground {
+            position: absolute; bottom: 0; left: 0; right: 0; height: 62px;
+            background: linear-gradient(180deg, #7CC860 0%, #5AAA42 40%, #3D8A2A 100%);
+        }
+        .ground::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 8px;
+            background: linear-gradient(180deg, rgba(160,220,120,.4), transparent); }
+
+        /* Cherry blossom trees */
+        .ctree { position: absolute; bottom: 54px; }
+        .ctree-trunk { width: 16px; height: 64px; margin: 0 auto;
+            background: linear-gradient(90deg, #7A4A20, #5A3010, #7A4A20);
+            border-radius: 6px 6px 3px 3px; }
+        .ctree-top { position: absolute; bottom: 56px; }
+        .ctree-l { left: 6px; }
+        .ctree-l .ctree-top { left: -10px; }
+        .ctree-r { right: 6px; }
+        .ctree-r .ctree-top { right: -10px; }
+
+        /* ══════════════════════════════════════
+           TOPBAR
+        ══════════════════════════════════════ */
+        .topbar {
+            position: absolute; top: 0; left: 0; right: 0; height: 40px; z-index: 30;
+            display: flex; align-items: center; justify-content: space-between; padding: 0 12px;
+            background: linear-gradient(180deg, rgba(0,0,0,.45) 0%, transparent 100%);
+        }
+        .tb-pill {
+            background: rgba(0,0,0,.42); backdrop-filter: blur(8px);
+            border: 1px solid rgba(255,255,255,.22);
+            color: #fff; font-size: 10px; padding: 4px 11px; border-radius: 10px; letter-spacing: .5px;
+            display: flex; align-items: center; gap: 5px;
+        }
+        .tb-pill .em { font-size: 12px; }
+        .round-badge {
+            background: linear-gradient(135deg, rgba(255,255,255,.28), rgba(255,255,255,.12));
+            backdrop-filter: blur(10px); border: 1.5px solid rgba(255,255,255,.38);
+            color: #fff; font-size: 13px; font-weight: bold; padding: 5px 18px; border-radius: 13px;
+            letter-spacing: 2px; font-family: 'Noto Serif SC', serif;
+            box-shadow: 0 2px 10px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.2);
+        }
+        .score-row { display: flex; gap: 6px; }
+        .sc-chip {
+            padding: 4px 11px; border-radius: 10px; font-size: 11px; font-weight: bold;
+            display: flex; align-items: center; gap: 4px; backdrop-filter: blur(6px);
+        }
+        .sc-chip.us { background: rgba(30,180,100,.3); border: 1px solid rgba(50,220,130,.5); color: #3DDD84; }
+        .sc-chip.them { background: rgba(220,50,50,.3); border: 1px solid rgba(255,80,80,.5); color: #FF6666; }
+        .sc-dot { width: 6px; height: 6px; border-radius: 50%; }
+        .sc-chip.us .sc-dot { background: #3DDD84; box-shadow: 0 0 5px #3DDD84; }
+        .sc-chip.them .sc-dot { background: #FF6666; box-shadow: 0 0 5px #FF6666; }
+
+        /* ══════════════════════════════════════
+           3D TABLE
+        ══════════════════════════════════════ */
+        .table-wrap {
+            position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%);
+            width: 500px; height: 180px; z-index: 12;
+        }
+        .table-wood {
+            position: absolute; inset: 0;
+            background: radial-gradient(ellipse 100% 100% at 50% 0%, #D4956A 0%, #B8723E 30%, #8B4A1E 60%, #6B320E 100%);
+            border-radius: 50%;
+            box-shadow: 0 -3px 0 rgba(255,200,140,.4), 0 8px 0 rgba(60,20,0,.5), 0 12px 30px rgba(0,0,0,.5), inset 0 2px 0 rgba(255,200,140,.25);
+        }
+        .table-wood::before {
+            content: ''; position: absolute; inset: 0; border-radius: 50%;
+            background: repeating-linear-gradient(88deg, transparent, transparent 6px, rgba(0,0,0,.04) 6px, rgba(0,0,0,.04) 7px);
+        }
+        .table-wood::after {
+            content: ''; position: absolute; top: 6px; left: 10px; right: 10px; height: 12px;
+            border-radius: 50%;
+            background: linear-gradient(180deg, rgba(255,220,160,.3), transparent);
+        }
+        .table-felt {
+            position: absolute; inset: 16px;
+            background: radial-gradient(ellipse 80% 70% at 50% 35%, #2E8B42 0%, #1E6830 50%, #124820 80%, #0A3016 100%);
+            border-radius: 50%;
+            box-shadow: inset 0 0 30px rgba(0,0,0,.4), inset 0 4px 8px rgba(0,0,0,.2);
+        }
+        .table-felt::after {
+            content: ''; position: absolute; inset: 12px; border-radius: 50%;
+            border: 1px solid rgba(255,255,255,.06);
         }
 
-        .team-a-player .player-avatar {
-            background: #4ade80;
-            color: #064e3b;
+        /* ══════════════════════════════════════
+           PLAY ZONE (on table)
+        ══════════════════════════════════════ */
+        .play-zone {
+            position: absolute; left: 50%; top: 44%; transform: translate(-50%, -50%);
+            z-index: 20; text-align: center;
+        }
+        .pz-who {
+            font-size: 10px; color: rgba(255,255,180,.85);
+            background: rgba(0,0,0,.4); padding: 2px 9px; border-radius: 7px;
+            margin-bottom: 5px; display: inline-block; letter-spacing: .5px;
+        }
+        .pz-who em { color: #FFD700; font-style: normal; font-weight: bold; }
+        .pz-cards { display: flex; gap: 3px; justify-content: center; align-items: flex-end; }
+        .pc {
+            background: linear-gradient(155deg, #FFFEF5 0%, #F8F2DC 100%);
+            border-radius: 5px; border: 1px solid #DDD;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            box-shadow: 2px 4px 10px rgba(0,0,0,.55), 0 0 0 .5px rgba(255,255,255,.5), inset 0 1px 0 rgba(255,255,255,.8);
+            animation: dealUp .35s cubic-bezier(.34,1.3,.64,1) backwards;
+        }
+        .pc.big { width: 38px; height: 56px; }
+        .pc.sm { width: 30px; height: 44px; }
+        .pc:nth-child(1) { animation-delay: 0s; }
+        .pc:nth-child(2) { animation-delay: .06s; }
+        .pc:nth-child(3) { animation-delay: .12s; }
+        .pc:nth-child(4) { animation-delay: .18s; }
+        .pc:nth-child(5) { animation-delay: .24s; }
+        .pc:nth-child(6) { animation-delay: .30s; }
+        @keyframes dealUp { from { transform: translateY(-24px) scale(.85); opacity: 0; } to { transform: none; opacity: 1; } }
+        .pc .rk { font-weight: 900; line-height: 1.05; font-family: 'Noto Serif SC', serif; }
+        .pc.big .rk { font-size: 18px; }
+        .pc.sm .rk { font-size: 14px; }
+        .pc .st { font-size: 10px; margin-top: -1px; }
+        .pc.sm .st { font-size: 8px; }
+        .pc.r .rk, .pc.r .st { color: #BB0000; }
+        .pc.b .rk, .pc.b .st { color: #111; }
+        .pc.joker-pc { background: linear-gradient(155deg, #F0E8FF 0%, #E0D0FF 100%); }
+        .pc.joker-pc .rk { font-size: 11px; color: #6600CC; }
+        .pz-tag {
+            margin-top: 6px; font-size: 11px; color: #FFD700;
+            background: rgba(255,200,0,.18); border: 1px solid rgba(255,200,0,.4);
+            padding: 2px 12px; border-radius: 9px; display: inline-block; letter-spacing: 1px;
         }
 
-        .team-b-player .player-avatar {
-            background: #f87171;
-            color: #7f1d1d;
+        /* 不出 big text */
+        .no-play {
+            font-family: 'Noto Serif SC', serif; font-size: 36px; font-weight: 900;
+            color: #FF3300;
+            text-shadow: 0 0 20px rgba(255,60,0,.8), 3px 3px 0 rgba(120,0,0,.4);
+            animation: popIn .3s cubic-bezier(.34,1.56,.64,1);
+        }
+        @keyframes popIn { from { transform: scale(.3) rotate(-8deg); opacity: 0; } to { transform: none; opacity: 1; } }
+
+        /* ══════════════════════════════════════
+           PLAYERS
+        ══════════════════════════════════════ */
+        .player { position: absolute; display: flex; flex-direction: column; align-items: center; gap: 3px; z-index: 22; }
+
+        /* Portrait frame */
+        .portrait {
+            position: relative; width: 58px; height: 58px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 30px;
+            background: linear-gradient(145deg, #2a2a3a, #1a1a2a);
+            overflow: hidden;
+        }
+        .portrait::before { content: ''; position: absolute; inset: -3px; border-radius: 50%; z-index: -1; }
+        .portrait.us-p::before {
+            background: conic-gradient(#3DDD84, #28C870, #1AAA58, #3DDD84);
+            animation: spinRing 4s linear infinite;
+        }
+        .portrait.them-p::before {
+            background: conic-gradient(#FF5555, #DD3333, #AA1111, #FF5555);
+            animation: spinRing 4s linear infinite reverse;
+        }
+        .portrait.active-p::before {
+            background: conic-gradient(#FFD700, #FFB300, #FF8C00, #FFD700);
+            animation: spinRing 1.5s linear infinite;
+        }
+        @keyframes spinRing { to { transform: rotate(360deg); } }
+        .portrait::after { content: ''; position: absolute; inset: 3px; border-radius: 50%; background: inherit; z-index: 0; }
+        .port-emoji { position: relative; z-index: 1; font-size: 28px; }
+        .port-shine {
+            position: absolute; inset: 0; border-radius: 50%;
+            background: linear-gradient(135deg, rgba(255,255,255,.25) 0%, transparent 60%);
+            z-index: 2; pointer-events: none;
+        }
+        .portrait.active-p { filter: drop-shadow(0 0 8px rgba(255,210,0,.9)); }
+
+        .p-badge {
+            position: absolute; bottom: -3px; right: -3px; z-index: 3;
+            background: linear-gradient(135deg, #FFD700, #FF8C00); color: #000;
+            font-size: 9px; font-weight: 900;
+            width: 18px; height: 18px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            border: 1.5px solid rgba(0,0,0,.5);
+            box-shadow: 0 2px 4px rgba(0,0,0,.4);
         }
 
-        .player-info {
-            flex: 1;
+        .pname {
+            font-size: 10px; white-space: nowrap;
+            background: rgba(0,0,0,.6); backdrop-filter: blur(6px);
+            border: 1px solid rgba(255,255,255,.14);
+            padding: 2px 8px; border-radius: 7px; letter-spacing: .3px;
+        }
+        .pname.us-n { color: #3DDD84; }
+        .pname.them-n { color: #FF7777; }
+
+        /* Mini card fan shown by opponents */
+        .card-fan { display: flex; margin-top: 2px; }
+        .cf {
+            width: 10px; height: 16px;
+            background: linear-gradient(135deg, #3D6EC0, #2450A0);
+            border-radius: 2px; border: 1px solid rgba(255,255,255,.28);
+            margin: 0 -1.5px;
+            box-shadow: 1px 1px 3px rgba(0,0,0,.4);
+        }
+        .cf:nth-child(odd) { transform: rotate(-3deg); }
+        .cf:nth-child(even) { transform: rotate(3deg); }
+
+        /* Positions */
+        .p-tl { top: 38px; left: 58px; }
+        .p-tc { top: 26px; left: 50%; transform: translateX(-50%); }
+        .p-tr { top: 38px; right: 58px; }
+        .p-bl { bottom: 105px; left: 60px; }
+        .p-br { bottom: 105px; right: 60px; }
+
+        /* ══════════════════════════════════════
+           MY HAND AREA
+        ══════════════════════════════════════ */
+        .my-area {
+            position: absolute; bottom: 0; left: 0; right: 0; height: 100px; z-index: 25;
+            background: linear-gradient(180deg,
+                transparent 0%, rgba(16,8,2,.7) 14%, rgba(10,5,1,.92) 30%, rgba(8,4,0,.97) 100%);
+            display: flex; align-items: center; padding: 0 10px 4px; gap: 8px;
         }
 
-        .player-name {
-            font-size: 13px;
-            font-weight: bold;
+        /* My avatar */
+        .my-portrait { flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+        .my-av {
+            width: 44px; height: 44px; border-radius: 50%;
+            background: linear-gradient(145deg, #1a3020, #0d1a10);
+            position: relative; display: flex; align-items: center; justify-content: center; font-size: 24px;
         }
-
-        .player-cards {
-            font-size: 11px;
-            color: #9ca3af;
+        .my-av::before {
+            content: ''; position: absolute; inset: -2.5px; border-radius: 50%; z-index: -1;
+            background: conic-gradient(#3DDD84, #1AAA58, #3DDD84);
+            animation: spinRing 4s linear infinite;
         }
+        .my-av::after { content: ''; position: absolute; inset: 2.5px; border-radius: 50%;
+            background: linear-gradient(145deg, #1a3020, #0d1a10); z-index: -1; }
+        .my-nm { font-size: 9px; color: #3DDD84; letter-spacing: .5px; }
 
-        .player-status {
-            font-size: 11px;
-            padding: 2px 6px;
-            border-radius: 4px;
-            background: #6b7280;
+        /* Score hint */
+        .score-hint { flex-shrink: 0; display: flex; flex-direction: column; gap: 3px; align-items: center; }
+        .sh-row {
+            display: flex; align-items: center; gap: 3px;
+            background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.1);
+            padding: 2px 7px; border-radius: 7px; font-size: 9px; color: #aaa;
         }
+        .sh-row .sv { color: #FFD700; font-weight: bold; margin-left: 2px; }
 
-        .player-status.finished {
-            background: #10b981;
+        /* Hand cards */
+        .hand {
+            flex: 1; display: flex; align-items: flex-end; justify-content: center;
+            padding-top: 18px; overflow: visible;
         }
-
-        /* Bottom Area */
-        .bottom-area {
-            margin-top: 10px;
-        }
-
-        .player-hand {
-            display: flex;
-            justify-content: center;
-            gap: 5px;
-            padding: 20px;
-            min-height: 140px;
-            background: rgba(0, 0, 0, 0.2);
-            border-radius: 10px;
-            flex-wrap: wrap;
-        }
-
-        .card {
-            width: 60px;
-            height: 84px;
-            background: white;
-            border-radius: 6px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-            user-select: none;
+        .hcard {
+            width: 40px; height: 60px;
+            background: linear-gradient(158deg, #FFFFFA 0%, #F8F3E2 70%, #F0EAD0 100%);
+            border-radius: 5px; border: 1px solid rgba(180,160,100,.4);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            box-shadow: 2px 4px 8px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.9);
+            margin: 0 -5px; flex-shrink: 0; cursor: pointer;
+            transition: transform .2s cubic-bezier(.34,1.56,.64,1), box-shadow .2s;
             position: relative;
         }
+        .hcard:hover { transform: translateY(-8px); z-index: 2; }
+        .hcard .hr { font-weight: 900; line-height: 1; font-family: 'Noto Serif SC', serif; font-size: 16px; }
+        .hcard .hs { font-size: 9px; margin-top: -1px; }
+        .hcard.r .hr, .hcard.r .hs { color: #CC0000; }
+        .hcard.b .hr, .hcard.b .hs { color: #111; }
+        .hcard.sel {
+            transform: translateY(-18px) !important; z-index: 3;
+            box-shadow: 0 0 18px rgba(255,210,0,.85), 2px 2px 8px rgba(0,0,0,.45);
+            border-color: #FFD700;
+            background: linear-gradient(158deg, #FFFFF0, #FFF8C0, #FFF0A0);
+        }
+        .hcard.sel::after {
+            content: '✓'; position: absolute; top: 1px; right: 3px;
+            font-size: 9px; color: #CC9900; font-weight: 900;
+        }
+        .hcard.joker { background: linear-gradient(158deg, #F0E8FF, #E0D0FF); }
+        .hcard.joker .hr { font-size: 9px; font-weight: 900; color: #6600CC; }
+        .hcard.sel.joker { background: linear-gradient(158deg, #F8F0FF, #EAD8FF); border-color: #9933FF; }
 
-        .card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.4);
+        /* Score label on card */
+        .sc-label {
+            position: absolute; bottom: 2px; right: 2px;
+            padding: 0 2px; border-radius: 2px; font-size: 7px; font-weight: bold; line-height: 1.4;
+        }
+        .sc-label.s5 { background: #FF8C00; color: #fff; }
+        .sc-label.s10 { background: #CC0000; color: #fff; }
+
+        /* Action buttons */
+        .acts { flex-shrink: 0; display: flex; flex-direction: column; gap: 6px; min-width: 72px; }
+        .act-btn {
+            width: 72px; padding: 9px 0; border-radius: 20px; border: none; cursor: pointer;
+            font-size: 13px; font-weight: bold; letter-spacing: 2px;
+            font-family: 'ZCOOL XiaoWei', 'PingFang SC', sans-serif;
+            transition: transform .12s, box-shadow .12s, opacity .12s;
+        }
+        .act-btn:active { transform: scale(.93); }
+        .act-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn-play {
+            background: linear-gradient(135deg, #FFD700 0%, #FFA000 60%, #FF7000 100%);
+            color: #000; box-shadow: 0 4px 16px rgba(255,140,0,.5), 0 1px 0 rgba(255,255,255,.3) inset;
+        }
+        .btn-pass {
+            background: linear-gradient(135deg, #2a3040, #1a2030);
+            color: #778; border: 1px solid rgba(255,255,255,.1);
         }
 
-        .card.selected {
-            transform: translateY(-15px);
-            box-shadow: 0 0 15px rgba(251, 191, 36, 0.6);
+        .emoji-btn {
+            width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0;
+            background: linear-gradient(135deg, #1a5030, #0f3820);
+            border: 1.5px solid rgba(61,221,132,.35);
+            color: #3DDD84; font-size: 20px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; align-self: center;
+            box-shadow: 0 0 12px rgba(0,200,100,.2);
         }
 
-        .card.red {
-            color: #dc2626;
+        /* ══════════════════════════════════════
+           GAME LOG
+        ══════════════════════════════════════ */
+        .game-log {
+            position: absolute; top: 45px; right: 10px; width: 160px; max-height: 120px;
+            background: rgba(0,0,0,.5); backdrop-filter: blur(6px);
+            border: 1px solid rgba(255,255,255,.15); border-radius: 8px;
+            padding: 6px 8px; overflow-y: auto; z-index: 35;
+            font-size: 10px; color: rgba(255,255,255,.85);
         }
+        .log-entry { padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,.08); line-height: 1.3; }
+        .log-entry:last-child { border-bottom: none; }
 
-        .card.black {
-            color: #1f2937;
-        }
-
-        .card.joker {
-            background: linear-gradient(135deg, #fbbf24, #f59e0b);
-            color: #1a1a1a;
-        }
-
-        .card-rank {
-            font-size: 18px;
-            font-weight: bold;
-        }
-
-        .card-suit {
-            font-size: 24px;
-        }
-
-        .card-back {
-            background: linear-gradient(135deg, #1e40af, #1e3a8a);
-            border: 2px solid #3b82f6;
-        }
-
-        .card-back::after {
-            content: "414";
-            color: rgba(255, 255, 255, 0.3);
-            font-size: 14px;
-            font-weight: bold;
-        }
-
-        /* Action Bar */
-        .action-bar {
-            display: flex;
-            justify-content: center;
-            gap: 15px;
-            padding: 15px;
-        }
-
-        .action-btn {
-            padding: 12px 30px;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: bold;
+        /* ══════════════════════════════════════
+           DEAL BUTTON
+        ══════════════════════════════════════ */
+        .deal-btn {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            z-index: 50;
+            padding: 14px 36px;
+            background: linear-gradient(135deg, #FFD700 0%, #FFA000 50%, #FF6000 100%);
+            border: none; border-radius: 28px;
+            color: #000; font-size: 18px; font-weight: bold; letter-spacing: 3px;
+            font-family: 'ZCOOL XiaoWei', 'PingFang SC', sans-serif;
             cursor: pointer;
-            transition: all 0.2s;
+            box-shadow: 0 8px 30px rgba(255,140,0,.5), 0 2px 6px rgba(0,0,0,.2);
+            transition: transform .14s, box-shadow .14s;
         }
+        .deal-btn:hover { transform: translate(-50%, -50%) scale(1.05); }
+        .deal-btn:active { transform: translate(-50%, -50%) scale(0.96); }
+        .deal-btn.hidden { display: none; }
 
-        .play-btn {
-            background: linear-gradient(135deg, #22c55e, #16a34a);
-            color: white;
-        }
-
-        .play-btn:hover:not(:disabled) {
-            transform: scale(1.05);
-            box-shadow: 0 0 15px rgba(34, 197, 94, 0.5);
-        }
-
-        .pass-btn {
-            background: linear-gradient(135deg, #6b7280, #4b5563);
-            color: white;
-        }
-
-        .pass-btn:hover:not(:disabled) {
-            transform: scale(1.05);
-            box-shadow: 0 0 15px rgba(107, 114, 128, 0.5);
-        }
-
-        .sort-btn {
-            background: linear-gradient(135deg, #8b5cf6, #7c3aed);
-            color: white;
-        }
-
-        .sort-btn:hover:not(:disabled) {
-            transform: scale(1.05);
-            box-shadow: 0 0 15px rgba(139, 92, 246, 0.5);
-        }
-
-        .action-btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        /* Modal */
+        /* ══════════════════════════════════════
+           MODAL
+        ══════════════════════════════════════ */
         .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.8);
-            display: none;
-            align-items: center;
-            justify-content: center;
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,.85);
+            display: none; align-items: center; justify-content: center;
             z-index: 1000;
         }
-
-        .modal-overlay.show {
-            display: flex;
-        }
-
+        .modal-overlay.show { display: flex; }
         .modal-content {
-            background: linear-gradient(135deg, #1f2937, #111827);
-            padding: 40px;
-            border-radius: 20px;
+            background: linear-gradient(135deg, #1a2030, #0d1218);
+            padding: 36px 48px; border-radius: 20px;
             text-align: center;
-            box-shadow: 0 0 50px rgba(0, 0, 0, 0.5);
-            border: 2px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 60px rgba(0,0,0,.6);
+            border: 1px solid rgba(255,255,255,.15);
+            min-width: 280px;
         }
-
         .modal-title {
-            font-size: 32px;
-            margin-bottom: 20px;
+            font-family: 'Noto Serif SC', serif; font-size: 36px; font-weight: 900;
+            margin-bottom: 16px; letter-spacing: 4px;
         }
-
-        .modal-title.win {
-            color: #4ade80;
+        .modal-title.win { color: #3DDD84; text-shadow: 0 0 20px rgba(61,221,132,.5); }
+        .modal-title.lose { color: #FF5555; text-shadow: 0 0 20px rgba(255,80,80,.5); }
+        .modal-scores {
+            font-size: 14px; color: rgba(255,255,255,.7);
+            margin-bottom: 24px; line-height: 1.8;
         }
-
-        .modal-title.lose {
-            color: #f87171;
+        .modal-scores strong { color: #FFD700; }
+        .modal-effect {
+            font-size: 18px; color: #FFD700; font-weight: bold;
+            margin-bottom: 20px; letter-spacing: 2px;
         }
-
-        .modal-details {
-            font-size: 18px;
-            color: #9ca3af;
-            margin-bottom: 30px;
-        }
-
         .modal-btn {
-            padding: 15px 40px;
-            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-            border: none;
-            border-radius: 10px;
-            color: white;
-            font-size: 18px;
+            padding: 12px 36px;
+            background: linear-gradient(135deg, #FFD700 0%, #FFA000 50%, #FF6000 100%);
+            border: none; border-radius: 24px;
+            color: #000; font-size: 16px; font-weight: bold; letter-spacing: 2px;
+            font-family: 'ZCOOL XiaoWei', 'PingFang SC', sans-serif;
             cursor: pointer;
-            transition: transform 0.2s;
+            box-shadow: 0 6px 20px rgba(255,140,0,.4);
+            transition: transform .12s;
         }
-
-        .modal-btn:hover {
-            transform: scale(1.05);
-        }
-
-        /* Empty state */
-        .empty-state {
-            color: #6b7280;
-            font-style: italic;
-        }
-
-        /* Analysis display */
-        .play-analysis {
-            margin-top: 10px;
-            padding: 8px 15px;
-            background: rgba(251, 191, 36, 0.2);
-            border-radius: 20px;
-            font-size: 14px;
-            color: #fbbf24;
-        }
+        .modal-btn:hover { transform: scale(1.05); }
+        .modal-btn:active { transform: scale(0.95); }
     </style>
 </head>
 <body>
-    <div class="game-container">
-        <!-- Top Bar -->
-        <div class="top-bar">
-            <div class="score-display">
-                <span class="team-a">A队: <span id="scoreA">0</span>分</span>
-                <span class="team-b">B队: <span id="scoreB">0</span>分</span>
+    <div class="canvas">
+        <!-- Background Scene -->
+        <div class="scene">
+            <div class="sky"></div>
+            <div class="sun"></div>
+            <div class="cloud c1"><div class="cloud-body"></div></div>
+            <div class="cloud c2"><div class="cloud-body"></div></div>
+            <!-- City SVG -->
+            <svg class="city-layer" viewBox="0 0 667 160" preserveAspectRatio="none">
+                <defs>
+                    <linearGradient id="bld" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stop-color="#7B88C8" stop-opacity=".28"/>
+                        <stop offset="100%" stop-color="#3A4480" stop-opacity=".22"/>
+                    </linearGradient>
+                </defs>
+                <!-- Left buildings -->
+                <rect x="0" y="80" width="38" height="80" fill="url(#bld)"/>
+                <rect x="0" y="80" width="38" height="4" fill="rgba(255,255,255,.12)"/>
+                <rect x="42" y="55" width="28" height="105" fill="url(#bld)"/>
+                <rect x="42" y="55" width="28" height="4" fill="rgba(255,255,255,.12)"/>
+                <rect x="74" y="90" width="22" height="70" fill="url(#bld)"/>
+                <rect x="100" y="68" width="20" height="92" fill="url(#bld)"/>
+                <rect x="124" y="96" width="16" height="64" fill="url(#bld)"/>
+                <!-- Window lights left -->
+                <rect x="6" y="90" width="5" height="5" fill="rgba(255,240,160,.35)" rx="1"/>
+                <rect x="14" y="90" width="5" height="5" fill="rgba(255,240,160,.35)" rx="1"/>
+                <rect x="6" y="100" width="5" height="5" fill="rgba(255,240,160,.15)" rx="1"/>
+                <rect x="14" y="100" width="5" height="5" fill="rgba(255,240,160,.35)" rx="1"/>
+                <rect x="6" y="110" width="5" height="5" fill="rgba(255,240,160,.35)" rx="1"/>
+                <rect x="48" y="65" width="6" height="6" fill="rgba(255,240,160,.3)" rx="1"/>
+                <rect x="58" y="65" width="6" height="6" fill="rgba(255,240,160,.4)" rx="1"/>
+                <rect x="48" y="76" width="6" height="6" fill="rgba(255,240,160,.4)" rx="1"/>
+                <rect x="58" y="76" width="6" height="6" fill="rgba(255,240,160,.15)" rx="1"/>
+                <!-- Center buildings (subtle) -->
+                <rect x="285" y="98" width="14" height="62" fill="url(#bld)" fill-opacity=".5"/>
+                <rect x="304" y="85" width="12" height="75" fill="url(#bld)" fill-opacity=".5"/>
+                <rect x="350" y="92" width="16" height="68" fill="url(#bld)" fill-opacity=".5"/>
+                <rect x="370" y="78" width="14" height="82" fill="url(#bld)" fill-opacity=".5"/>
+                <!-- Right buildings -->
+                <rect x="525" y="92" width="16" height="68" fill="url(#bld)"/>
+                <rect x="545" y="70" width="20" height="90" fill="url(#bld)"/>
+                <rect x="569" y="56" width="28" height="104" fill="url(#bld)"/>
+                <rect x="569" y="56" width="28" height="4" fill="rgba(255,255,255,.12)"/>
+                <rect x="601" y="78" width="38" height="82" fill="url(#bld)"/>
+                <rect x="601" y="78" width="38" height="4" fill="rgba(255,255,255,.12)"/>
+                <rect x="639" y="85" width="28" height="75" fill="url(#bld)"/>
+                <!-- Window lights right -->
+                <rect x="575" y="68" width="6" height="6" fill="rgba(255,240,160,.3)" rx="1"/>
+                <rect x="585" y="68" width="6" height="6" fill="rgba(255,240,160,.4)" rx="1"/>
+                <rect x="575" y="80" width="6" height="6" fill="rgba(255,240,160,.4)" rx="1"/>
+                <rect x="585" y="80" width="6" height="6" fill="rgba(255,240,160,.2)" rx="1"/>
+                <rect x="607" y="88" width="5" height="5" fill="rgba(255,240,160,.35)" rx="1"/>
+                <rect x="616" y="88" width="5" height="5" fill="rgba(255,240,160,.3)" rx="1"/>
+                <rect x="607" y="98" width="5" height="5" fill="rgba(255,240,160,.2)" rx="1"/>
+                <!-- Horizon haze -->
+                <rect x="0" y="140" width="667" height="20" fill="url(#bldw)"/>
+            </svg>
+            <div class="lake"></div>
+            <div class="ground"></div>
+            <!-- Cherry trees -->
+            <div class="ctree ctree-l">
+                <svg class="ctree-top" width="110" height="90" viewBox="0 0 110 90" style="position:absolute;bottom:64px;left:-28px;">
+                    <defs>
+                        <radialGradient id="blossom" cx="50%" cy="40%" r="55%">
+                            <stop offset="0%" stop-color="#FFD0E0"/>
+                            <stop offset="50%" stop-color="#FF8FAB"/>
+                            <stop offset="100%" stop-color="#E0507A"/>
+                        </radialGradient>
+                    </defs>
+                    <ellipse cx="55" cy="48" rx="50" ry="40" fill="url(#blossom)" opacity=".9"/>
+                    <ellipse cx="30" cy="38" rx="28" ry="24" fill="url(#blossom)" opacity=".85"/>
+                    <ellipse cx="78" cy="34" rx="26" ry="22" fill="url(#blossom)" opacity=".85"/>
+                    <text x="8" y="55" font-size="11" opacity=".6">🌸🌸🌸🌸🌸</text>
+                    <text x="20" y="38" font-size="10" opacity=".5">🌸🌸🌸</text>
+                </svg>
+                <div class="ctree-trunk"></div>
             </div>
-            <div class="turn-indicator" id="turnIndicator">等待开始</div>
-            <button class="deal-btn" onclick="dealNewGame()">发新牌</button>
+            <div class="ctree ctree-r">
+                <svg class="ctree-top" width="110" height="90" viewBox="0 0 110 90" style="position:absolute;bottom:64px;right:-28px;">
+                    <defs>
+                        <radialGradient id="blossom2" cx="50%" cy="40%" r="55%">
+                            <stop offset="0%" stop-color="#FFD0E0"/>
+                            <stop offset="50%" stop-color="#FF8FAB"/>
+                            <stop offset="100%" stop-color="#E0507A"/>
+                        </radialGradient>
+                    </defs>
+                    <ellipse cx="55" cy="48" rx="50" ry="40" fill="url(#blossom2)" opacity=".9"/>
+                    <ellipse cx="32" cy="34" rx="26" ry="22" fill="url(#blossom2)" opacity=".85"/>
+                    <ellipse cx="76" cy="38" rx="28" ry="24" fill="url(#blossom2)" opacity=".85"/>
+                    <text x="8" y="55" font-size="11" opacity=".6">🌸🌸🌸🌸🌸</text>
+                    <text x="22" y="38" font-size="10" opacity=".5">🌸🌸🌸</text>
+                </svg>
+                <div class="ctree-trunk"></div>
+            </div>
         </div>
 
-        <!-- Main Area -->
-        <div class="main-area">
-            <!-- Center Area -->
-            <div class="center-area">
-                <div class="last-play-area">
-                    <div class="last-play-label">上家出牌</div>
-                    <div class="last-play-cards" id="lastPlayCards">
-                        <span class="empty-state">暂无出牌</span>
-                    </div>
-                    <div class="play-analysis" id="playAnalysis" style="display: none;"></div>
-                </div>
-                <div class="game-log" id="gameLog">
-                    <div class="log-entry">点击"发新牌"开始游戏</div>
-                </div>
-            </div>
-
-            <!-- Player List -->
-            <div class="player-list" id="playerList">
-                <!-- Generated by JS -->
+        <!-- Topbar -->
+        <div class="topbar">
+            <div class="tb-pill"><span class="em">🏮</span>调试房间</div>
+            <div class="round-badge" id="roundBadge">第 一 局</div>
+            <div class="score-row">
+                <div class="sc-chip us"><div class="sc-dot"></div>A队 <strong id="scoreA">0</strong>分</div>
+                <div class="sc-chip them"><div class="sc-dot"></div>B队 <strong id="scoreB">0</strong>分</div>
             </div>
         </div>
 
-        <!-- Bottom Area -->
-        <div class="bottom-area">
-            <div class="player-hand" id="playerHand">
-                <!-- Generated by JS -->
-            </div>
-            <div class="action-bar">
-                <button class="action-btn play-btn" id="playBtn" onclick="playCards()" disabled>出牌</button>
-                <button class="action-btn pass-btn" id="passBtn" onclick="passTurn()" disabled>不要</button>
-                <button class="action-btn sort-btn" id="sortBtn" onclick="sortHand()" disabled>整理</button>
+        <!-- 3D Table -->
+        <div class="table-wrap">
+            <div class="table-wood">
+                <div class="table-felt"></div>
             </div>
         </div>
+
+        <!-- Play zone -->
+        <div class="play-zone" id="playZone">
+            <div style="color:rgba(255,255,255,.5);font-size:12px;">点击"发牌"开始游戏</div>
+        </div>
+
+        <!-- Game Log -->
+        <div class="game-log" id="gameLog">
+            <div class="log-entry">欢迎来到东北刨幺414</div>
+        </div>
+
+        <!-- Player: Top-left (bot4 - teammate) -->
+        <div class="player p-tl" id="seat4">
+            <div class="portrait us-p"><span class="port-emoji">🧑</span><div class="port-shine"></div><div class="p-badge" id="badge4">27</div></div>
+            <div class="card-fan" id="fan4"></div>
+            <div class="pname us-n">队友4</div>
+        </div>
+
+        <!-- Player: Top-center (bot3 - opponent) -->
+        <div class="player p-tc" id="seat3">
+            <div class="portrait them-p"><span class="port-emoji">👨</span><div class="port-shine"></div><div class="p-badge" id="badge3">27</div></div>
+            <div class="card-fan" id="fan3"></div>
+            <div class="pname them-n">对手3</div>
+        </div>
+
+        <!-- Player: Top-right (bot2 - teammate) -->
+        <div class="player p-tr" id="seat2">
+            <div class="portrait us-p"><span class="port-emoji">👩</span><div class="port-shine"></div><div class="p-badge" id="badge2">27</div></div>
+            <div class="card-fan" id="fan2"></div>
+            <div class="pname us-n">队友2</div>
+        </div>
+
+        <!-- Player: Bottom-left (bot5 - opponent) -->
+        <div class="player p-bl" id="seat5">
+            <div class="portrait them-p"><span class="port-emoji">👴</span><div class="port-shine"></div><div class="p-badge" id="badge5">27</div></div>
+            <div class="card-fan" id="fan5"></div>
+            <div class="pname them-n">对手5</div>
+        </div>
+
+        <!-- Player: Bottom-right (bot1 - opponent) -->
+        <div class="player p-br" id="seat1">
+            <div class="portrait them-p"><span class="port-emoji">😤</span><div class="port-shine"></div><div class="p-badge" id="badge1">27</div></div>
+            <div class="card-fan" id="fan1"></div>
+            <div class="pname them-n">对手1</div>
+        </div>
+
+        <!-- My hand area -->
+        <div class="my-area">
+            <div class="my-portrait">
+                <div class="my-av"><span style="position:relative;z-index:1;">🙂</span></div>
+                <div class="my-nm">我</div>
+            </div>
+
+            <div class="score-hint">
+                <div class="sh-row">🟡 积分牌<span class="sv" id="myScoreCards">+0</span></div>
+                <div class="sh-row">📦 剩余<span class="sv" id="myCardCount">27张</span></div>
+            </div>
+
+            <div class="hand" id="playerHand">
+                <!-- Cards generated by JS -->
+            </div>
+
+            <div class="emoji-btn" title="表情" onclick="showEmoji()">😄</div>
+
+            <div class="acts">
+                <button class="act-btn btn-play" id="playBtn" onclick="playCards()" disabled>出 牌</button>
+                <button class="act-btn btn-pass" id="passBtn" onclick="passTurn()" disabled>不 要</button>
+            </div>
+        </div>
+
+        <!-- Deal Button -->
+        <button class="deal-btn" id="dealBtn" onclick="dealNewGame()">发 牌</button>
     </div>
 
     <!-- Game Over Modal -->
     <div class="modal-overlay" id="gameOverModal">
         <div class="modal-content">
             <div class="modal-title" id="modalTitle">游戏结束</div>
-            <div class="modal-details" id="modalDetails"></div>
+            <div class="modal-scores" id="modalScores"></div>
+            <div class="modal-effect" id="modalEffect"></div>
             <button class="modal-btn" onclick="closeModal()">再来一局</button>
         </div>
     </div>
@@ -486,19 +693,19 @@
             // 3 decks of regular cards
             for (let d = 0; d < 3; d++) {
                 for (const suit of SUITS) {
-                    for (const rank of RANK_ORDER.slice(0, 13)) { // 4-3, no jokers
-                        deck.push({ rank, suit, id: `${rank}${suit}_${d}` });
+                    for (const rank of RANK_ORDER.slice(0, 13)) {
+                        deck.push({ rank, suit, id: `${rank}${suit}_${d}_${Math.random().toString(36).substr(2, 5)}` });
                     }
                 }
             }
             // 3 decks of jokers (6 jokers per deck = 18 total)
             for (let d = 0; d < 3; d++) {
-                deck.push({ rank: '小王', suit: 'joker', id: `小王_${d}_0` });
-                deck.push({ rank: '小王', suit: 'joker', id: `小王_${d}_1` });
-                deck.push({ rank: '大王', suit: 'joker', id: `大王_${d}_0` });
-                deck.push({ rank: '大王', suit: 'joker', id: `大王_${d}_1` });
-                deck.push({ rank: '小王', suit: 'joker', id: `小王_${d}_2` });
-                deck.push({ rank: '大王', suit: 'joker', id: `大王_${d}_2` });
+                deck.push({ rank: '小王', suit: 'joker', id: `小王_${d}_0_${Math.random().toString(36).substr(2, 5)}` });
+                deck.push({ rank: '小王', suit: 'joker', id: `小王_${d}_1_${Math.random().toString(36).substr(2, 5)}` });
+                deck.push({ rank: '大王', suit: 'joker', id: `大王_${d}_0_${Math.random().toString(36).substr(2, 5)}` });
+                deck.push({ rank: '大王', suit: 'joker', id: `大王_${d}_1_${Math.random().toString(36).substr(2, 5)}` });
+                deck.push({ rank: '小王', suit: 'joker', id: `小王_${d}_2_${Math.random().toString(36).substr(2, 5)}` });
+                deck.push({ rank: '大王', suit: 'joker', id: `大王_${d}_2_${Math.random().toString(36).substr(2, 5)}` });
             }
             return deck;
         }
@@ -526,29 +733,18 @@
             const rankCounts = {};
             ranks.forEach(r => rankCounts[r] = (rankCounts[r] || 0) + 1);
 
-            // Single card (单张王也是单张，lu=1)
+            // Single card
             if (cards.length === 1) {
-                return {
-                    type: 'single',
-                    lu: 1,
-                    value: rankValue(cards[0].rank),
-                    valid: true
-                };
+                return { type: 'single', lu: 1, value: rankValue(cards[0].rank), valid: true };
             }
 
             // Check for Yao (幺): 1 Ace + N*4s (N>=2)
             const aceCount = rankCounts['A'] || 0;
             const fourCount = rankCounts['4'] || 0;
             if (aceCount === 1 && fourCount >= 2 && cards.length === 1 + fourCount) {
-                // Check no other cards
                 const otherCards = ranks.filter(r => r !== 'A' && r !== '4');
                 if (otherCards.length === 0) {
-                    return {
-                        type: 'yao',
-                        lu: fourCount * 2, // 每张4算2路，A不加路
-                        value: fourCount, // More 4s = higher value
-                        valid: true
-                    };
+                    return { type: 'yao', lu: fourCount * 2, value: fourCount, valid: true };
                 }
             }
 
@@ -583,7 +779,6 @@
                         break;
                     }
                 }
-                // Check all unique (no pairs in straight)
                 const uniqueValues = [...new Set(values)];
                 if (isStraight && uniqueValues.length === values.length) {
                     return { type: 'straight', lu: cards.length, value: values[values.length - 1], valid: true };
@@ -595,13 +790,10 @@
                 const pairCount = cards.length / 2;
                 const pairs = [];
                 let validDragon = true;
-
-                // Group into pairs
                 const rankVals = {};
                 for (const r of ranks) {
                     rankVals[r] = (rankVals[r] || 0) + 1;
                 }
-
                 for (const [rank, count] of Object.entries(rankVals)) {
                     if (count !== 2) {
                         validDragon = false;
@@ -609,7 +801,6 @@
                     }
                     pairs.push(rankValue(rank));
                 }
-
                 if (validDragon && pairs.length >= 3) {
                     pairs.sort((a, b) => a - b);
                     let consecutive = true;
@@ -641,19 +832,16 @@
         }
 
         function canBeat(newPlay, lastPlay) {
-            if (!lastPlay || !lastPlay.analysis) return true; // Free play
+            if (!lastPlay || !lastPlay.analysis) return true;
 
             const newAnalysis = newPlay.analysis || analyzePlay(newPlay.cards);
             const lastAnalysis = lastPlay.analysis;
 
             if (!newAnalysis.valid) return false;
 
-            // Higher lu wins
             if (newAnalysis.lu > lastAnalysis.lu) return true;
             if (newAnalysis.lu < lastAnalysis.lu) return false;
 
-            // Same lu - compare types
-            // Yao > Joker bomb > others
             const typePriority = { 'yao': 3, 'joker_bomb': 2, 'bomb': 1, 'dragon': 1, 'straight': 1, 'pair': 1, 'single': 1 };
             const newPriority = typePriority[newAnalysis.type] || 0;
             const lastPriority = typePriority[lastAnalysis.type] || 0;
@@ -661,8 +849,6 @@
             if (newPriority > lastPriority) return true;
             if (newPriority < lastPriority) return false;
 
-            // Same type and lu - higher value wins
-            // For straights and dragons, must be same length
             if ((newAnalysis.type === 'straight' || newAnalysis.type === 'dragon') &&
                 newPlay.cards.length !== lastPlay.cards.length) {
                 return false;
@@ -682,12 +868,20 @@
         // ==================== Game State ====================
         const SEATS = ['player', 'bot1', 'bot2', 'bot3', 'bot4', 'bot5'];
         const SEAT_NAMES = {
-            'player': '玩家',
-            'bot1': '机器人1',
-            'bot2': '机器人2',
-            'bot3': '机器人3',
-            'bot4': '机器人4',
-            'bot5': '机器人5'
+            'player': '我',
+            'bot1': '对手1',
+            'bot2': '队友2',
+            'bot3': '对手3',
+            'bot4': '队友4',
+            'bot5': '对手5'
+        };
+        const SEAT_EMOJIS = {
+            'player': '🙂',
+            'bot1': '😤',
+            'bot2': '👩',
+            'bot3': '👨',
+            'bot4': '🧑',
+            'bot5': '👴'
         };
 
         function getTeam(seat) {
@@ -707,7 +901,9 @@
             borrowLight: null,
             log: [],
             finished: [],
-            selectedCards: []
+            selectedCards: [],
+            round: 1,
+            gameStarted: false
         };
 
         // ==================== UI Functions ====================
@@ -719,104 +915,53 @@
 
         function updateLog() {
             const logEl = document.getElementById('gameLog');
-            logEl.innerHTML = gameState.log.slice(-10).map(msg =>
+            logEl.innerHTML = gameState.log.slice(-8).map(msg =>
                 `<div class="log-entry">${msg}</div>`
             ).join('');
             logEl.scrollTop = logEl.scrollHeight;
         }
 
-        function updatePlayerList() {
-            const list = document.getElementById('playerList');
-            list.innerHTML = SEATS.map(seat => {
-                const team = getTeam(seat);
-                const isActive = gameState.currentTurn === seat;
-                const handCount = gameState.hands[seat]?.length || 0;
-                const isFinished = gameState.finished.includes(seat);
-
-                return `
-                    <div class="player-item ${team === 'A' ? 'team-a-player' : 'team-b-player'} ${isActive ? 'active' : ''}">
-                        <div class="player-avatar">${team}</div>
-                        <div class="player-info">
-                            <div class="player-name">${SEAT_NAMES[seat]}</div>
-                            <div class="player-cards">${isFinished ? '已出完' : handCount + '张牌'}</div>
-                        </div>
-                        ${isFinished ? '<div class="player-status finished">完成</div>' : ''}
-                    </div>
-                `;
-            }).join('');
-        }
-
-        function updateScores() {
-            document.getElementById('scoreA').textContent = gameState.scoreA;
-            document.getElementById('scoreB').textContent = gameState.scoreB;
-        }
-
-        function updateTurnIndicator() {
-            const indicator = document.getElementById('turnIndicator');
-            if (gameState.finished.length === 6) {
-                indicator.textContent = '游戏结束';
-            } else if (gameState.currentTurn === 'player') {
-                indicator.textContent = '你的回合';
-            } else {
-                indicator.textContent = `${SEAT_NAMES[gameState.currentTurn]}的回合`;
-            }
-        }
-
-        function updateLastPlay() {
-            const container = document.getElementById('lastPlayCards');
-            const analysisEl = document.getElementById('playAnalysis');
-
-            if (!gameState.lastPlay) {
-                container.innerHTML = '<span class="empty-state">暂无出牌</span>';
-                analysisEl.style.display = 'none';
-                return;
-            }
-
-            container.innerHTML = gameState.lastPlay.cards.map(card => renderCard(card, false)).join('');
-
-            const analysis = gameState.lastPlay.analysis;
-            const typeNames = {
-                'single': '单张',
-                'pair': '对子',
-                'straight': '顺子',
-                'dragon': '双龙',
-                'bomb': '炸弹',
-                'yao': '幺',
-                'joker_bomb': '王炸'
-            };
-            analysisEl.textContent = `${typeNames[analysis.type] || analysis.type} · ${analysis.lu}路`;
-            analysisEl.style.display = 'block';
-        }
-
-        function renderCard(card, selectable = true) {
+        function renderPlayCard(card) {
             const isRed = card.suit === '♥' || card.suit === '♦';
             const isJoker = card.suit === 'joker';
-            const isSelected = gameState.selectedCards.some(c => c.id === card.id);
+            const rankDisplay = card.rank;
+            const suitDisplay = isJoker ? '' : card.suit;
+            return `<div class="pc big ${isRed ? 'r' : 'b'} ${isJoker ? 'joker-pc' : ''}">
+                <span class="rk">${rankDisplay}</span>
+                ${suitDisplay ? `<span class="st">${suitDisplay}</span>` : ''}
+            </div>`;
+        }
 
-            let suitDisplay = card.suit;
-            if (card.rank === '小王') suitDisplay = '小';
-            if (card.rank === '大王') suitDisplay = '大';
-
-            return `
-                <div class="card ${isRed ? 'red' : ''} ${isJoker ? 'joker' : ''} ${isSelected ? 'selected' : ''} ${selectable ? '' : 'card-back'}"
-                     ${selectable ? `onclick="toggleCard('${card.id}')"` : ''}>
-                    <div class="card-rank">${card.rank}</div>
-                    <div class="card-suit">${suitDisplay}</div>
-                </div>
-            `;
+        function renderHandCard(card, selected) {
+            const isRed = card.suit === '♥' || card.suit === '♦';
+            const isJoker = card.suit === 'joker';
+            const isScore = SCORE_MAP[card.rank] > 0;
+            const scoreLabel = isScore ? `<div class="sc-label ${card.rank === '5' ? 's5' : 's10'}">${SCORE_MAP[card.rank]}</div>` : '';
+            return `<div class="hcard ${isRed ? 'r' : 'b'} ${isJoker ? 'joker' : ''} ${selected ? 'sel' : ''}" onclick="toggleCard('${card.id}')">
+                <span class="hr">${card.rank}</span>
+                ${!isJoker ? `<span class="hs">${card.suit}</span>` : ''}
+                ${scoreLabel}
+            </div>`;
         }
 
         function updatePlayerHand() {
             const container = document.getElementById('playerHand');
             const hand = gameState.hands.player || [];
-
-            // Sort by rank
             const sorted = [...hand].sort((a, b) => rankValue(a.rank) - rankValue(b.rank));
+            container.innerHTML = sorted.map(card => {
+                const isSelected = gameState.selectedCards.some(c => c.id === card.id);
+                return renderHandCard(card, isSelected);
+            }).join('');
 
-            container.innerHTML = sorted.map(card => renderCard(card, true)).join('');
+            // Update my stats
+            document.getElementById('myCardCount').textContent = hand.length + '张';
+            const myScoreCards = hand.filter(c => SCORE_MAP[c.rank] > 0);
+            const myScoreValue = myScoreCards.reduce((sum, c) => sum + (SCORE_MAP[c.rank] || 0), 0);
+            document.getElementById('myScoreCards').textContent = '+' + myScoreValue;
         }
 
         function toggleCard(cardId) {
+            if (!gameState.gameStarted) return;
             const card = gameState.hands.player.find(c => c.id === cardId);
             if (!card) return;
 
@@ -827,6 +972,7 @@
                 gameState.selectedCards.push(card);
             }
             updatePlayerHand();
+            updateButtons();
         }
 
         function updateButtons() {
@@ -835,7 +981,114 @@
 
             document.getElementById('playBtn').disabled = !isPlayerTurn || !hasSelection;
             document.getElementById('passBtn').disabled = !isPlayerTurn;
-            document.getElementById('sortBtn').disabled = gameState.hands.player?.length === 0;
+        }
+
+        function updateScores() {
+            document.getElementById('scoreA').textContent = gameState.scoreA;
+            document.getElementById('scoreB').textContent = gameState.scoreB;
+        }
+
+        function updateRoundBadge() {
+            const roundText = ['一', '二', '三', '四', '五'][gameState.round - 1] || gameState.round;
+            document.getElementById('roundBadge').textContent = `第 ${roundText} 局`;
+        }
+
+        function updatePlayZone() {
+            const zone = document.getElementById('playZone');
+
+            if (!gameState.lastPlay) {
+                zone.innerHTML = '<div style="color:rgba(255,255,255,.5);font-size:12px;">等待出牌...</div>';
+                return;
+            }
+
+            const playerName = SEAT_NAMES[gameState.lastPlay.userId];
+            const analysis = gameState.lastPlay.analysis;
+            const typeNames = {
+                'single': '单张',
+                'pair': '对子',
+                'straight': '顺子',
+                'dragon': '双龙',
+                'bomb': '炸弹',
+                'yao': '幺',
+                'joker_bomb': '王炸'
+            };
+
+            const cardsHtml = gameState.lastPlay.cards.map(card => renderPlayCard(card)).join('');
+
+            zone.innerHTML = `
+                <div class="pz-who">▶ <em>${playerName}</em> 出牌</div>
+                <div class="pz-cards">${cardsHtml}</div>
+                <div class="pz-tag">${typeNames[analysis.type] || analysis.type} · ${analysis.lu}路</div>
+            `;
+        }
+
+        function showPassAnimation(seat) {
+            const zone = document.getElementById('playZone');
+            const playerName = SEAT_NAMES[seat];
+            zone.innerHTML = `
+                <div class="pz-who"><em>${playerName}</em></div>
+                <div class="no-play">不出</div>
+            `;
+        }
+
+        function updateOpponents() {
+            // Update each opponent's card count and active state
+            for (let i = 1; i <= 5; i++) {
+                const seat = SEATS[i];
+                const handCount = gameState.hands[seat]?.length || 0;
+                const isActive = gameState.currentTurn === seat;
+                const isFinished = gameState.finished.includes(seat);
+
+                // Update badge
+                const badge = document.getElementById(`badge${i}`);
+                if (badge) {
+                    badge.textContent = isFinished ? '✓' : handCount;
+                }
+
+                // Update portrait active state
+                const seatEl = document.getElementById(`seat${i}`);
+                const portrait = seatEl?.querySelector('.portrait');
+                if (portrait) {
+                    portrait.classList.remove('active-p');
+                    if (isActive && !isFinished) {
+                        portrait.classList.add('active-p');
+                    }
+                }
+
+                // Update card fan
+                const fan = document.getElementById(`fan${i}`);
+                if (fan) {
+                    if (isFinished) {
+                        fan.innerHTML = '';
+                    } else {
+                        const cardCount = Math.min(handCount, 8);
+                        fan.innerHTML = Array(cardCount).fill('<div class="cf"></div>').join('');
+                    }
+                }
+            }
+        }
+
+        function updateActivePlayer() {
+            // Clear all active states
+            document.querySelectorAll('.portrait').forEach(p => p.classList.remove('active-p'));
+
+            // Set active for current turn
+            const currentSeat = gameState.currentTurn;
+            const seatIdx = SEATS.indexOf(currentSeat);
+
+            if (seatIdx === 0) {
+                // My turn - highlight my avatar
+                document.querySelector('.my-av').style.boxShadow = '0 0 15px rgba(255,210,0,.9)';
+            } else {
+                document.querySelector('.my-av').style.boxShadow = 'none';
+                const seatEl = document.getElementById(`seat${seatIdx}`);
+                if (seatEl) {
+                    const portrait = seatEl.querySelector('.portrait');
+                    if (portrait && !gameState.finished.includes(currentSeat)) {
+                        portrait.classList.add('active-p');
+                    }
+                }
+            }
         }
 
         // ==================== Game Logic ====================
@@ -853,7 +1106,9 @@
                 borrowLight: null,
                 log: ['新游戏开始！'],
                 finished: [],
-                selectedCards: []
+                selectedCards: [],
+                round: gameState.round || 1,
+                gameStarted: true
             };
 
             // Deal 27 cards to each player
@@ -861,20 +1116,18 @@
                 gameState.hands[SEATS[i]] = deck.slice(i * 27, (i + 1) * 27);
             }
 
-            updatePlayerList();
+            document.getElementById('dealBtn').classList.add('hidden');
+            updateRoundBadge();
             updatePlayerHand();
+            updateOpponents();
             updateScores();
-            updateTurnIndicator();
-            updateLastPlay();
+            updatePlayZone();
+            updateActivePlayer();
             updateButtons();
             updateLog();
 
-            // Start with player
+            log('游戏开始！你是A队，先出牌');
             checkTurn();
-        }
-
-        function sortHand() {
-            updatePlayerHand();
         }
 
         function playCards() {
@@ -918,7 +1171,7 @@
                 gameState.selectedCards = [];
             }
 
-            log(`${SEAT_NAMES[seat]} 出了 ${cards.map(c => c.rank + c.suit).join(' ')}`);
+            log(`${SEAT_NAMES[seat]} 出了 ${cards.map(c => c.rank + (c.suit === 'joker' ? '' : c.suit)).join(' ')}`);
 
             // Check if player finished
             if (hand.length === 0 && !gameState.finished.includes(seat)) {
@@ -940,11 +1193,28 @@
             gameState.passCount++;
             log(`${SEAT_NAMES[seat]} 不要`);
 
+            // Show pass animation
+            showPassAnimation(seat);
+
             // Check if all others passed
             if (gameState.passCount >= 5) {
+                // BUG FIX: Add score to the team of lastPlay when everyone passes
+                if (gameState.lastPlay) {
+                    const lastPlayScore = calcScore(gameState.lastPlay.cards);
+                    const winningTeam = getTeam(gameState.lastPlay.userId);
+                    if (winningTeam === 'A') {
+                        gameState.scoreA += lastPlayScore;
+                    } else {
+                        gameState.scoreB += lastPlayScore;
+                    }
+                    log(`${SEAT_NAMES[gameState.lastPlay.userId]} 赢得本轮，获得 ${lastPlayScore} 分`);
+                }
+
                 log('所有其他玩家都选择不要，新一轮开始');
                 gameState.lastPlay = null;
                 gameState.passCount = 0;
+                updateScores();
+                updatePlayZone();
             }
 
             updateUI();
@@ -962,11 +1232,22 @@
                 log(`${SEAT_NAMES[seat]} 出完了`);
             }
 
+            // BUG FIX: Add remaining score cards when a player empties hand
+            // The player who emptied their hand wins the round, collect the lastPlay score
+            if (gameState.lastPlay) {
+                const lastPlayScore = calcScore(gameState.lastPlay.cards);
+                if (lastPlayScore > 0) {
+                    if (team === 'A') {
+                        gameState.scoreA += lastPlayScore;
+                    } else {
+                        gameState.scoreB += lastPlayScore;
+                    }
+                    log(`${SEAT_NAMES[seat]} 获得本轮 ${lastPlayScore} 分`);
+                }
+            }
+
             // Check for borrow light
-            // If this player finished and opponents haven't taken the last play,
-            // the next teammate continues
             if (gameState.lastPlay && getTeam(gameState.lastPlay.userId) !== team) {
-                // Opponent played last, check if they can be beaten
                 gameState.borrowLight = {
                     finishedSeat: seat,
                     team: team,
@@ -974,6 +1255,8 @@
                 };
                 log('借光！队友可以继续出牌');
             }
+
+            updateScores();
         }
 
         function nextTurn() {
@@ -983,7 +1266,7 @@
             // Skip finished players
             while (gameState.finished.includes(SEATS[nextIdx])) {
                 nextIdx = (nextIdx + 1) % 6;
-                if (nextIdx === currentIdx) break; // All finished
+                if (nextIdx === currentIdx) break;
             }
 
             gameState.currentTurn = SEATS[nextIdx];
@@ -1009,11 +1292,9 @@
             const hand = gameState.hands[botSeat];
             const lastPlay = gameState.lastPlay;
 
-            // Try to find a play that beats lastPlay
             let bestPlay = null;
             let bestAnalysis = null;
 
-            // Generate all possible plays
             const possiblePlays = generatePossiblePlays(hand);
 
             for (const play of possiblePlays) {
@@ -1021,7 +1302,6 @@
                 if (!analysis.valid) continue;
 
                 if (canBeat({ cards: play, analysis }, lastPlay)) {
-                    // Prefer smaller plays
                     if (!bestPlay || analysis.lu < bestAnalysis.lu ||
                         (analysis.lu === bestAnalysis.lu && analysis.value < bestAnalysis.value)) {
                         bestPlay = play;
@@ -1045,7 +1325,7 @@
                 plays.push([card]);
             }
 
-            // Pairs
+            // Pairs and bombs
             const rankGroups = {};
             for (const card of hand) {
                 if (!rankGroups[card.rank]) rankGroups[card.rank] = [];
@@ -1053,7 +1333,6 @@
             }
 
             for (const [rank, cards] of Object.entries(rankGroups)) {
-                // Pairs
                 if (cards.length >= 2) {
                     for (let i = 0; i < cards.length - 1; i++) {
                         for (let j = i + 1; j < cards.length; j++) {
@@ -1061,7 +1340,6 @@
                         }
                     }
                 }
-                // Bombs (3+ same rank)
                 if (cards.length >= 3) {
                     plays.push(cards.slice(0, 3));
                     if (cards.length >= 4) plays.push(cards.slice(0, 4));
@@ -1070,13 +1348,12 @@
                 }
             }
 
-            // Straights (3+ consecutive)
+            // Straights
             const sortedHand = [...hand].sort((a, b) => rankValue(a.rank) - rankValue(b.rank));
             const nonJokers = sortedHand.filter(c => c.rank !== '小王' && c.rank !== '大王');
 
             for (let len = 3; len <= 13; len++) {
                 for (let start = 0; start <= 13 - len; start++) {
-                    // Try to form a straight from start to start+len-1
                     const straight = [];
                     let canForm = true;
                     for (let i = 0; i < len; i++) {
@@ -1095,7 +1372,7 @@
                 }
             }
 
-            // Dragons (consecutive pairs)
+            // Dragons
             for (let len = 3; len <= 6; len++) {
                 for (let start = 0; start <= 13 - len; start++) {
                     const dragon = [];
@@ -1116,7 +1393,7 @@
                 }
             }
 
-            // Yao (1 Ace + N*4s, N>=2)
+            // Yao
             const aces = hand.filter(c => c.rank === 'A');
             const fours = hand.filter(c => c.rank === '4');
             if (aces.length >= 1 && fours.length >= 2) {
@@ -1129,8 +1406,6 @@
             const smallJokers = hand.filter(c => c.rank === '小王');
             const bigJokers = hand.filter(c => c.rank === '大王');
 
-            // Single jokers are already added as singles
-            // Multiple jokers
             if (smallJokers.length + bigJokers.length >= 2) {
                 for (let i = 0; i < smallJokers.length; i++) {
                     for (let j = 0; j < bigJokers.length; j++) {
@@ -1146,12 +1421,7 @@
 
         // ==================== Win Conditions ====================
         function checkWinConditions() {
-            // 1. First finisher's team >= 135pts
-            // 2. Non-first-finisher's team >= 210pts
-            // 3. Full team empties hand
-
             if (gameState.finished.length < 6) {
-                // Check if one team has all finished
                 const teamAFinished = SEATS.filter((s, i) => i % 2 === 0 && gameState.finished.includes(s));
                 const teamBFinished = SEATS.filter((s, i) => i % 2 === 1 && gameState.finished.includes(s));
 
@@ -1160,46 +1430,61 @@
                     return true;
                 }
             }
-
-            // Calculate current scores from played cards
-            // For simplicity, we track scores as cards are played
-            // In a real game, we'd need to track who took which cards
-
             return false;
         }
 
         function endGame(winningTeam, reason) {
             const modal = document.getElementById('gameOverModal');
             const title = document.getElementById('modalTitle');
-            const details = document.getElementById('modalDetails');
+            const scores = document.getElementById('modalScores');
+            const effect = document.getElementById('modalEffect');
 
             const playerTeam = getTeam('player');
             const playerWon = winningTeam === playerTeam;
 
             title.textContent = playerWon ? '你赢了！' : '你输了！';
             title.className = 'modal-title ' + (playerWon ? 'win' : 'lose');
-            details.textContent = `${winningTeam}队获胜！原因：${reason}`;
+
+            scores.innerHTML = `
+                A队: <strong>${gameState.scoreA}</strong> 分<br>
+                B队: <strong>${gameState.scoreB}</strong> 分<br>
+                <span style="font-size:12px;color:rgba(255,255,255,.5);">${reason}</span>
+            `;
+
+            // Calculate effect (大血/小血)
+            const scoreDiff = winningTeam === 'A' ? gameState.scoreA - gameState.scoreB : gameState.scoreB - gameState.scoreA;
+            if (scoreDiff >= 100) {
+                effect.textContent = winningTeam === playerTeam ? '大血！' : '被大血...';
+            } else if (scoreDiff >= 50) {
+                effect.textContent = winningTeam === playerTeam ? '小血！' : '被小血...';
+            } else {
+                effect.textContent = '普通胜利';
+            }
 
             modal.classList.add('show');
         }
 
         function closeModal() {
             document.getElementById('gameOverModal').classList.remove('show');
+            gameState.round++;
             dealNewGame();
         }
 
+        function showEmoji() {
+            log('你发送了一个表情 😄');
+        }
+
         function updateUI() {
-            updatePlayerList();
             updatePlayerHand();
-            updateScores();
-            updateTurnIndicator();
-            updateLastPlay();
+            updateOpponents();
+            updateActivePlayer();
+            updatePlayZone();
             updateButtons();
         }
 
         // Initialize
-        updatePlayerList();
         updateLog();
+        updateOpponents();
     </script>
 </body>
 </html>
