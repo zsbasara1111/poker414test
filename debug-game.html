@@ -337,9 +337,17 @@
 
         /* Hand cards */
         .hand {
-            flex: 1; display: flex; align-items: flex-end; justify-content: center;
-            padding-top: 18px; overflow: visible;
+            flex: 1; display: flex; align-items: flex-end;
+            padding-top: 18px;
+            overflow-x: auto; overflow-y: visible;
+            /* 自定义细滚动条 */
+            scrollbar-width: thin; scrollbar-color: rgba(255,200,0,.3) transparent;
         }
+        .hand::-webkit-scrollbar { height: 3px; }
+        .hand::-webkit-scrollbar-track { background: transparent; }
+        .hand::-webkit-scrollbar-thumb { background: rgba(255,200,0,.3); border-radius: 2px; }
+        /* 让canvas底部不裁剪手牌的选中上浮 */
+        .canvas { overflow: visible !important; }
         .hcard {
             width: 40px; height: 60px;
             background: linear-gradient(158deg, #FFFFFA 0%, #F8F3E2 70%, #F0EAD0 100%);
@@ -376,6 +384,23 @@
         }
         .sc-label.s5 { background: #FF8C00; color: #fff; }
         .sc-label.s10 { background: #CC0000; color: #fff; }
+
+        /* ─── 手牌双区域 ─── */
+        /* 上半区：点击/滑动选牌 */
+        .card-top-zone {
+            position: absolute; top: 0; left: 0; right: 0; height: 56%;
+            display: flex; flex-direction: column; align-items: center;
+            justify-content: center; padding-top: 4px;
+            cursor: pointer; z-index: 2; user-select: none;
+        }
+        /* 下半区：拖拽换位 */
+        .card-bot-zone {
+            position: absolute; bottom: 0; left: 0; right: 0; height: 44%;
+            cursor: grab; z-index: 2;
+            border-top: 1px dashed rgba(150,130,80,.15);
+        }
+        .card-bot-zone:active { cursor: grabbing; }
+        .hcard.drag-over { border-color: #FFD700 !important; transform: scale(1.06) !important; z-index: 10 !important; }
 
         /* Action buttons */
         .acts { flex-shrink: 0; display: flex; flex-direction: column; gap: 6px; min-width: 72px; }
@@ -698,14 +723,10 @@
                     }
                 }
             }
-            // 3 decks of jokers (6 jokers per deck = 18 total)
+            // 每副牌1张小王+1张大王，共3副=6张王
             for (let d = 0; d < 3; d++) {
-                deck.push({ rank: '小王', suit: 'joker', id: `小王_${d}_0_${Math.random().toString(36).substr(2, 5)}` });
-                deck.push({ rank: '小王', suit: 'joker', id: `小王_${d}_1_${Math.random().toString(36).substr(2, 5)}` });
-                deck.push({ rank: '大王', suit: 'joker', id: `大王_${d}_0_${Math.random().toString(36).substr(2, 5)}` });
-                deck.push({ rank: '大王', suit: 'joker', id: `大王_${d}_1_${Math.random().toString(36).substr(2, 5)}` });
-                deck.push({ rank: '小王', suit: 'joker', id: `小王_${d}_2_${Math.random().toString(36).substr(2, 5)}` });
-                deck.push({ rank: '大王', suit: 'joker', id: `大王_${d}_2_${Math.random().toString(36).substr(2, 5)}` });
+                deck.push({ rank: '小王', suit: 'joker', id: `小王_${d}_${Math.random().toString(36).substr(2, 5)}` });
+                deck.push({ rank: '大王', suit: 'joker', id: `大王_${d}_${Math.random().toString(36).substr(2, 5)}` });
             }
             return deck;
         }
@@ -932,32 +953,126 @@
             </div>`;
         }
 
-        function renderHandCard(card, selected) {
+        // ── 双区域交互状态 ──
+        let _sweeping = false;       // 正在滑动多选
+        let _sweepAdding = null;     // 本次滑动是"选中"还是"取消"
+        let _dragSrcId = null;       // 拖拽换位起点
+
+        function renderHandCard(card, selected, marginPx) {
             const isRed = card.suit === '♥' || card.suit === '♦';
             const isJoker = card.suit === 'joker';
-            const isScore = SCORE_MAP[card.rank] > 0;
-            const scoreLabel = isScore ? `<div class="sc-label ${card.rank === '5' ? 's5' : 's10'}">${SCORE_MAP[card.rank]}</div>` : '';
-            return `<div class="hcard ${isRed ? 'r' : 'b'} ${isJoker ? 'joker' : ''} ${selected ? 'sel' : ''}" onclick="toggleCard('${card.id}')">
-                <span class="hr">${card.rank}</span>
-                ${!isJoker ? `<span class="hs">${card.suit}</span>` : ''}
-                ${scoreLabel}
+            const isScore = !!SCORE_MAP[card.rank];
+            const scoreLabel = isScore
+                ? `<div class="sc-label ${card.rank === '5' ? 's5' : 's10'}">${SCORE_MAP[card.rank]}</div>` : '';
+            const mStyle = marginPx !== undefined ? `style="margin:0 ${marginPx}px"` : '';
+            return `<div class="hcard ${isRed ? 'r' : 'b'} ${isJoker ? 'joker' : ''} ${selected ? 'sel' : ''}"
+                        data-cid="${card.id}" ${mStyle}>
+                <div class="card-top-zone"
+                    onmousedown="cardTopDown(event,'${card.id}')"
+                    onmouseenter="cardTopEnter(event,'${card.id}')">
+                    <span class="hr">${card.rank}</span>
+                    ${!isJoker ? `<span class="hs">${card.suit}</span>` : ''}
+                    ${scoreLabel}
+                </div>
+                <div class="card-bot-zone"
+                    draggable="true"
+                    ondragstart="cardDragStart(event,'${card.id}')"
+                    ondragover="cardDragOver(event,'${card.id}')"
+                    ondrop="cardDrop(event,'${card.id}')"
+                    ondragleave="cardDragLeave(event)">
+                </div>
             </div>`;
         }
 
         function updatePlayerHand() {
             const container = document.getElementById('playerHand');
             const hand = gameState.hands.player || [];
-            const sorted = [...hand].sort((a, b) => rankValue(a.rank) - rankValue(b.rank));
+
+            // 排序：从小到大（4在左，大王在右）
+            const sorted = gameState.playerHandOrder
+                ? gameState.playerHandOrder.filter(c => hand.some(h => h.id === c.id))
+                : [...hand].sort((a, b) => rankValue(a.rank) - rankValue(b.rank));
+
+            // 动态计算重叠量，让所有牌都在可视范围内
+            const CARD_W = 40;
+            const availW = container.offsetWidth || 360;
+            const n = sorted.length;
+            let margin = -5; // 每侧默认 -5px
+            if (n > 1) {
+                // total = n*CARD_W + 2*(n-1)*margin
+                const needed = (n * CARD_W - availW) / (2 * (n - 1));
+                if (needed > 5) margin = -Math.min(needed, 16); // 最多重叠到只剩 8px 可见
+            }
+
             container.innerHTML = sorted.map(card => {
                 const isSelected = gameState.selectedCards.some(c => c.id === card.id);
-                return renderHandCard(card, isSelected);
+                return renderHandCard(card, isSelected, margin);
             }).join('');
 
-            // Update my stats
             document.getElementById('myCardCount').textContent = hand.length + '张';
-            const myScoreCards = hand.filter(c => SCORE_MAP[c.rank] > 0);
-            const myScoreValue = myScoreCards.reduce((sum, c) => sum + (SCORE_MAP[c.rank] || 0), 0);
+            const myScoreValue = hand.reduce((s, c) => s + (SCORE_MAP[c.rank] || 0), 0);
             document.getElementById('myScoreCards').textContent = '+' + myScoreValue;
+        }
+
+        // ── 上半区：点击选牌 / 按住滑动多选 ──
+        function cardTopDown(e, cid) {
+            if (!gameState.gameStarted || gameState.currentTurn !== 'player') return;
+            e.preventDefault();
+            _sweeping = true;
+            // 确定本次滑动操作是"加选"还是"取消"
+            const alreadySel = gameState.selectedCards.some(c => c.id === cid);
+            _sweepAdding = !alreadySel;
+            _toggleSelectById(cid, _sweepAdding);
+        }
+        function cardTopEnter(e, cid) {
+            if (!_sweeping) return;
+            _toggleSelectById(cid, _sweepAdding);
+        }
+        document.addEventListener('mouseup', () => { _sweeping = false; _sweepAdding = null; });
+
+        function _toggleSelectById(cid, add) {
+            const card = gameState.hands.player.find(c => c.id === cid);
+            if (!card) return;
+            const idx = gameState.selectedCards.findIndex(c => c.id === cid);
+            if (add && idx < 0) gameState.selectedCards.push(card);
+            if (!add && idx >= 0) gameState.selectedCards.splice(idx, 1);
+            updatePlayerHand();
+            updateButtons();
+        }
+
+        // ── 下半区：拖拽换位 ──
+        function cardDragStart(e, cid) {
+            _dragSrcId = cid;
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', cid);
+        }
+        function cardDragOver(e, cid) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            document.querySelectorAll('.hcard.drag-over').forEach(el => el.classList.remove('drag-over'));
+            const el = document.querySelector(`.hcard[data-cid="${cid}"]`);
+            if (el) el.classList.add('drag-over');
+        }
+        function cardDragLeave(e) {
+            e.currentTarget.closest('.hcard')?.classList.remove('drag-over');
+        }
+        function cardDrop(e, targetCid) {
+            e.preventDefault();
+            document.querySelectorAll('.hcard.drag-over').forEach(el => el.classList.remove('drag-over'));
+            if (!_dragSrcId || _dragSrcId === targetCid) return;
+            const hand = gameState.hands.player;
+            // 建立/复用手动排序数组
+            if (!gameState.playerHandOrder) {
+                gameState.playerHandOrder = [...hand].sort((a, b) => rankValue(a.rank) - rankValue(b.rank));
+            }
+            const arr = gameState.playerHandOrder;
+            const si = arr.findIndex(c => c.id === _dragSrcId);
+            const ti = arr.findIndex(c => c.id === targetCid);
+            if (si < 0 || ti < 0) return;
+            const [moved] = arr.splice(si, 1);
+            arr.splice(ti, 0, moved);
+            _dragSrcId = null;
+            updatePlayerHand();
         }
 
         function toggleCard(cardId) {
